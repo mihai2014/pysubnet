@@ -148,7 +148,19 @@ class Subnets:
             color = bcolors.OKBLUE
 
         if param == "available":
-            print(f"{color} {' '*level} -{level} {net} {info} [{nrcrt_subnet_op}] [{nrcrt_usable_op}] {bcolors.ENDC}")        
+            
+            hosts = net.hosts()
+            broadcast = net.broadcast_address
+       
+            all = []
+            for host in hosts:
+                all.append(host)
+            
+            start = all[0]
+            end = all[-1]
+            
+            #print(f"{color} {' '*level} -{level} {net} - {broadcast} {info} [{nrcrt_subnet_op}] [{nrcrt_usable_op}] {bcolors.ENDC}")        
+            print(f"{color} {' '*level} -{level} {net} - {broadcast} {info}  [{start}-{end}] {bcolors.ENDC}")        
 
         # available nets for choosing subnet/usage
         if subnets == []:

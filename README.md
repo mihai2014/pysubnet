@@ -1,4 +1,4 @@
-# Python script for subnetting IPv4 networks
+    # Python script for subnetting IPv4 networks
 
 Modules needed:
 
@@ -19,6 +19,8 @@ Defined network configurations are stored in network.pic file
 ### Reference docs:
 
 https://docs.python.org/3/library/ipaddress.html
+
 https://docs.python.org/3/howto/ipaddress.html
+
 https://www.askpython.com/python-modules/ipaddress-module
 
