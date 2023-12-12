@@ -1,0 +1,4 @@
+https://docs.python.org/3/library/ipaddress.html
+https://docs.python.org/3/howto/ipaddress.html
+
+https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax
