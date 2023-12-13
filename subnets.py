@@ -19,6 +19,11 @@ import ipaddress
 
 import sys
 
+class state:
+    AVAILABLE = 0
+    SUBNETTED = 1
+    USED = 2
+
 class bcolors:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
@@ -65,12 +70,41 @@ def loadData(dbname):
 
     return db
 
+# usable hosts = 2^host_bits-2
+#
+# 11111111.11111111.11111111.00000000
+# |-------------------------|-------|
+#  32-8                      2^8-2
+#
+# 11111111.11111111.11111111.11111100
+# |-------------------------------|-|
+#  32-2                            2^2-2
+#
+# 10000000.00000000.00000000.00000000
+# ||--------------------------------|
+# 32-31                   2^31-2 
+# 32-n                    2^n-2
+# net mask                usable hosts
+
+#masks,mask = hosts(20000)
+#print(mask)
+
 class Subnets:
     def __init__(self,net=""):
         
         # load stored data       
         if net == "":
-            ret = loadData("network.pic")
+            
+            print("Loading stored data ...")
+            
+            # maybe this file not exists yet
+            try:
+                ret = loadData("network.pic")
+            except:
+                # init data store file
+                self.reset()
+                ret = loadData("network.pic")
+                    
             if ret != []:
                 self.rootNetItem = ret
             else:
@@ -78,10 +112,11 @@ class Subnets:
                 sys.exit()
         else:
             # erase stored data
+            print("New network. Erasing storage.")
             storeDatadb([],"network.pic")
-            #                  netip,subnets,info used net,level,nrcrt subnetization,nrcrt select usable net
+            #                  netip, subnets,i nfo used/available net, level, operation nrcrt subnetization, operation nrcrt select usable net,state
             #                        children
-            self.rootNetItem = [ipaddress.ip_network(net),[],"",0,0,0]
+            self.rootNetItem = [ipaddress.ip_network(net),[],"",0,0,0,state.AVAILABLE]
         
         # self.rootNet = net
                
@@ -89,18 +124,19 @@ class Subnets:
         
         self.parent = None
 
-    def reset():
+    def reset(self):
             # erase stored data
             storeDatadb([],"network.pic")        
 
     def scan_tree(self,netItem,param,param2,param3):
-        pass
+        
         net = netItem[0]
         subnets = netItem[1]
         info = netItem[2]
         level = netItem[3]
         nrcrt_subnet_op = netItem[4]
         nrcrt_usable_op = netItem[5]
+        netstate = netItem[6]
 
         self.parent = None
 
@@ -128,24 +164,32 @@ class Subnets:
                 # this stops recursivity !
                 #parentSubnets.remove(netItem)
                                 
-                # so just mark ncrcrt op with -1 for delete afterwards, below
+                # can't delete here so just mark ncrcrt op with -1 for delete afterwards, below
                 netItem[4] = -1
                 
             if self.op == "usable" and nrcrt_usable_op == self.maxop:
-                                
-                # unmark the info
-                netItem[2] = ""
-                # none op nrcrt
+                
+                # # unmark the info
+                netItem[2] = "available"
+                # # none op nrcrt
                 netItem[5] = 0
+                
+                netItem[6] = state.AVAILABLE
+                
+                storeDatadb(self.rootNetItem,"network.pic") 
                 
                 return
 
         if subnets != []:
             # is subnetted
             color = bcolors.FAIL
+            
         else:
-            # is not ...
-            color = bcolors.OKBLUE
+            # is not subnetted
+            if netstate == state.AVAILABLE:
+                color = bcolors.OKGREEN
+            if netstate == state.USED:
+                color = bcolors.OKBLUE    
 
         if param == "available":
             
@@ -158,14 +202,15 @@ class Subnets:
             
             start = all[0]
             end = all[-1]
+            hosts_nr = len(all)
             
-            #print(f"{color} {' '*level} -{level} {net} - {broadcast} {info} [{nrcrt_subnet_op}] [{nrcrt_usable_op}] {bcolors.ENDC}")        
-            print(f"{color} {' '*level} -{level} {net} - {broadcast} {info}  [{start}-{end}] {bcolors.ENDC}")        
+            print(f"{color} {'  '*level} > {level} {net} - bcast: {broadcast} => {info} <= hosts ({hosts_nr}) : [{start} - {end}] [{nrcrt_subnet_op}] [{nrcrt_usable_op}] {bcolors.ENDC}")        
+            #print(f"{color} {'  '*level} > {level} {net} - bcast: {broadcast} = {info} = hosts ({hosts_nr}) : [{start} - {end}] {bcolors.ENDC}")        
 
-        # available nets for choosing subnet/usage
-        if subnets == []:
-            # and not marked with info != "" means available nets for subnetting or usage
-            if info == "":
+        if param == "available":
+            
+            # available nets for choosing subnet/usage
+            if netstate == state.AVAILABLE:
                 self.results.append(netItem)
 
         # memorize parent for removing children in "back" option
@@ -194,8 +239,11 @@ class Subnets:
         #print(subnets_list)
 
         for subnet in subnets_list:
-            newNetItem = [subnet,[],info,level+1,self.nrcrt,0]
+            newNetItem = [subnet,[],info,level+1,self.nrcrt,0,state.AVAILABLE]
             netItem[1].append(newNetItem)
+
+        netItem[2] = "SUBNETTED"
+        netItem[6] = state.SUBNETTED
 
         storeDatadb(self.rootNetItem,"network.pic")    
 
@@ -204,6 +252,7 @@ class Subnets:
         
         netItem[2] = info
         netItem[5] = self.nrcrt
+        netItem[6] = state.USED
         
         storeDatadb(self.rootNetItem,"network.pic")    
 
@@ -211,12 +260,30 @@ class Subnets:
 
         self.walk_tree("available")
 
-        print("available nets")
+        print()
+
+        print(f"{bcolors.OKGREEN}available nets index:")
         n = 0
         for netItem in self.results:
-            if (netItem[2] == ""):
-                print(f"{n}: {netItem[0]}")
+            #if (netItem[2] == ""):
+            #if (netItem[2] == "available"):
+            if (netItem[1] == []):    
+                
+                net = netItem[0]
+                hosts = net.hosts()
+                broadcast = net.broadcast_address                
+
+                all = []
+                for host in hosts:
+                    all.append(host)
+                
+                start = all[0]
+                end = all[-1]
+                hosts_nr = len(all)
+                
+                print(f"{n}: {netItem[0]} - bcast: {broadcast} hosts ({hosts_nr}) : [{start} - {end}]")
                 n+=1
+        print(f"{bcolors.ENDC}")        
     
     # back operation                            
     def back(self):
@@ -245,6 +312,13 @@ class Subnets:
 
             self.parent[1] = newlist
             
+            # resetting info if no subnets defined
+            # this could be used (info != SUBNETTED) or available ()
+            if newlist == []:
+                if self.parent[6] == state.SUBNETTED:
+                    self.parent[6] = state.AVAILABLE
+                    self.parent[2] = "available"    
+            
         storeDatadb(self.rootNetItem,"network.pic")    
 
     def testn(self,number):
@@ -252,32 +326,99 @@ class Subnets:
             n = int(number)
             return n
         except Exception as e:
-            print(f"{e}")    
-            sys.exit() 
-        
-    # choose network for subneting    
-    def operation_subnet(self,param):
-        pass
+            print(f"{bcolors.FAIL} {e} {bcolors.ENDC}")    
+            #sys.exit()
+            return None 
+
+    # choose metwork for subnetting by nr of desired hosts
+    def operation_subnet_hosts(self,param):
+
         items = param.split("/")
         index = items[0]
         index = self.testn(index)
-        bits = items[1]
-        bits = self.testn(bits)
+        if index == None:
+            return False
+        hosts = items[1]
+        hosts = self.testn(hosts)
+        if hosts == None:
+            return False
+
+        masks,mask = s.hosts(hosts)
+        print(f"Subnetting /{mask}")
+
+        bits = mask
 
         netItem = self.results[index]    
-        self.subnets(netItem,bits)        
+        self.subnets(netItem,bits,"available")        
+        
+        return True
+
+        
+        
+    # choose network for subneting by bits dimension of mask   
+    def operation_subnet_bits(self,param):
+        
+        items = param.split("/")
+        index = items[0]
+        index = self.testn(index)
+        if index == None:
+            return False
+        bits = items[1]
+        bits = self.testn(bits)
+        if bits == None:
+            return False
+
+        netItem = self.results[index]    
+        self.subnets(netItem,bits,"available")        
+        
+        return True
         
     # choose network for usage
     def operation_mark_used(self,param):
-        pass
+        
         items = param.split("/")
         index = items[0]
         index = self.testn(index)
+        if index == None:
+            return False
         info = items[1]
+        
+        if info == "available":
+            print("Can't use <<available>> for used network")
+            return
         
         netItem = self.results[index]
         self.mark(netItem,info)
+
+        return True
+
+    def hosts(self, n_hosts=0):
+
+        n_hosts = self.testn(n_hosts)
+        if n_hosts == None:
+            return False, False
+
+        masks = {}
+        result_net_mask = 0
+
+        for n in range(2,32):
+            net_mask = 32-n
+            hosts = 2**n-2
+            #print(hosts,net_mask)
+            masks[hosts] = net_mask
+
+        # identify net_mask for n_hosts
         
+        if n_hosts != 0:
+            for key in masks:
+                hosts = key
+                net_mask = masks[key]
+                #print(hosts,net_mask)
+                if hosts >= n_hosts:
+                    result_net_mask = net_mask
+                    break    
+
+        return masks,result_net_mask         
 
 
 help = '''
@@ -285,7 +426,8 @@ Input 0 (load stored data)  or 1 (network) parameters
 '''
 options ='''
 Choose options:
-s - subnetting
+sb - subnetting : choose bits of network
+sh - subnetting : choose number of desired hosts => bits of network
 u - used net
 b - back/reverse last operation
 '''
@@ -324,28 +466,38 @@ if __name__ == "__main__":
     s = Subnets(net)
     
     while True:
+        
         s.available()   
         key = input(options)
         
-        if key == "s":
-            pass
+        if key == "sh":
         
-            arg = input("Choose network index/networkbits: ")                
-            s.operation_subnet(arg)
+            arg = input("Choose index/number of desired hosts: ")
+            try:
+                s.operation_subnet_hosts(arg)                                        
+            except Exception as e:
+                print(f"{bcolors.FAIL} {e} {bcolors.ENDC}")                  
+        
+        if key == "sb":
+        
+            arg = input("Choose network index/networkbits: ")   
+            try:
+                s.operation_subnet_bits(arg)
+            except Exception as e:
+                print(f"{bcolors.FAIL} {e} {bcolors.ENDC}")                                  
                     
         elif key == "u":
-            pass
             
             arg = input("Choose network index/description(info of used net): ")
-            s.operation_mark_used(arg)
-
+            try:
+                s.operation_mark_used(arg)
+            except Exception as e:
+                print(f"{bcolors.FAIL} {e} {bcolors.ENDC}")                  
+                
         elif key == "b":
-            pass
         
             s.back()
             
-        #     elif key == "3":
-        #         print("3")    
         else:
             print("undefined option")            
 
