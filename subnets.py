@@ -195,7 +195,10 @@ class Subnets:
             
             hosts = net.hosts()
             broadcast = net.broadcast_address
-       
+      
+            #ipwithnetmask = net.with_netmask
+            #ipwithhostmask = net.with_hostmask
+
             all = []
             for host in hosts:
                 all.append(host)
@@ -204,8 +207,8 @@ class Subnets:
             end = all[-1]
             hosts_nr = len(all)
             
-            print(f"{color} {'  '*level} > {level} {net} - bcast: {broadcast} => {info} <= hosts ({hosts_nr}) : [{start} - {end}] [{nrcrt_subnet_op}] [{nrcrt_usable_op}] {bcolors.ENDC}")        
-            #print(f"{color} {'  '*level} > {level} {net} - bcast: {broadcast} = {info} = hosts ({hosts_nr}) : [{start} - {end}] {bcolors.ENDC}")        
+            #print(f"{color} {'  '*level} > {level} {net} - bcast: {broadcast} ( {info} ) hosts ({hosts_nr}) : [{start} - {end}] [{nrcrt_subnet_op}] [{nrcrt_usable_op}] {bcolors.ENDC}")        
+            print(f"{color} {'  '*level} > {level} {net} - bcast: {broadcast} ( {info} ) hosts ({hosts_nr}) : [{start} - {end}] {net.netmask} {bcolors.ENDC}")        
 
         if param == "available":
             
